@@ -9,7 +9,7 @@ interface WordListProps {
   onEdit: (word: Word) => void;
   onDelete: (id: string) => void;
   onGenerateImage: (id: string) => Promise<void>;
-  onPractice: (word: Word) => void;
+  onPracticeSpeech: (word: Word) => void;
   isOnline: boolean;
 }
 
@@ -21,16 +21,16 @@ const WordCard: React.FC<{
   onEdit: (word: Word) => void;
   onDelete: (id: string) => void;
   onGenerateImage: (id: string) => Promise<void>;
-  onPractice: (word: Word) => void;
+  onPracticeSpeech: (word: Word) => void;
   isOnline: boolean;
-}> = ({ word, index, canEdit, canDelete, onEdit, onDelete, onGenerateImage, onPractice, isOnline }) => {
+}> = ({ word, index, canEdit, canDelete, onEdit, onDelete, onGenerateImage, onPracticeSpeech, isOnline }) => {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleManualGenerate = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isGenerating || word.imageUrl) return;
     if (!isOnline) {
-      alert("You are offline. Image generation requires internet.");
+      alert("Internet required for AI visuals.");
       return;
     }
     
@@ -38,131 +38,101 @@ const WordCard: React.FC<{
     try {
       await onGenerateImage(word.id);
     } catch (error) {
-      console.error("Manual generation failed:", error);
+      console.error("Visual generation failed:", error);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const playAudio = (url: string) => {
-    const audio = new Audio(url);
-    audio.play().catch(e => console.error("Audio playback failed", e));
+  const playAudio = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!word.audioUrl) return;
+    const audio = new Audio(word.audioUrl);
+    audio.play().catch(err => console.error("Audio failed", err));
   };
 
   return (
     <div 
-      className="bg-white rounded-3xl shadow-sm border border-gray-100 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 relative group flex flex-col h-full animate-card-entry overflow-hidden"
-      style={{ animationDelay: `${index * 75}ms` }}
+      className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-2xl transition-all duration-500 relative group flex flex-col h-full animate-card-entry overflow-hidden"
+      style={{ animationDelay: `${index * 50}ms` }}
     >
-      <div className="relative aspect-video bg-gray-50 overflow-hidden">
+      <div className="relative aspect-[16/10] bg-gray-50 overflow-hidden">
         {word.imageUrl ? (
-          <img 
-            src={word.imageUrl} 
-            alt={word.english} 
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-          />
+          <img src={word.imageUrl} alt={word.english} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" />
         ) : (
-          <button 
-            onClick={handleManualGenerate}
-            disabled={isGenerating || !isOnline}
-            className={`w-full h-full flex flex-col items-center justify-center p-6 text-center space-y-3 transition-colors group/gen ${!isOnline ? 'cursor-not-allowed opacity-50' : 'hover:bg-blue-50/50'}`}
-          >
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${isGenerating ? 'bg-blue-100 text-blue-600' : 'bg-blue-50 text-blue-300 group-hover/gen:text-blue-500 group-hover/gen:scale-110'}`}>
-              {isGenerating ? (
-                <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h14a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              )}
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className={`text-[10px] font-black uppercase tracking-widest ${isGenerating ? 'text-blue-600' : 'text-gray-300 group-hover/gen:text-blue-400'}`}>
-                {!isOnline ? 'Offline: No AI Image' : isGenerating ? 'AI is Drawing...' : 'Tap to Generate Photo'}
-              </span>
-            </div>
-          </button>
+          <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center space-y-3">
+             <div className="w-12 h-12 bg-blue-50 text-blue-200 rounded-2xl flex items-center justify-center">
+               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h14a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+             </div>
+             {canEdit && (
+               <button onClick={handleManualGenerate} disabled={isGenerating || !isOnline} className="px-4 py-2 bg-white/80 backdrop-blur-md border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-blue-600 hover:border-blue-200 transition-all active:scale-95 disabled:opacity-50">
+                 {isGenerating ? 'Generating...' : 'Generate AI Image'}
+               </button>
+             )}
+          </div>
         )}
         
-        {word.isOfflineReady && (
-          <div className="absolute top-4 right-4 z-20 flex items-center gap-1 bg-emerald-500/90 text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest shadow-lg backdrop-blur-sm animate-in fade-in duration-300">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
-            Offline
-          </div>
-        )}
+        <div className="absolute top-4 left-4">
+          <span className="px-3 py-1 bg-black/40 backdrop-blur-md text-white rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">{word.category}</span>
+        </div>
 
-        <button 
-          onClick={() => onPractice(word)}
-          className="absolute top-4 left-4 p-3 bg-white/90 backdrop-blur-md text-blue-600 rounded-2xl shadow-lg border border-white hover:scale-110 active:scale-95 transition-all flex items-center gap-2 z-20"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-          <span className="text-[10px] font-black uppercase tracking-widest pr-1">Practice</span>
-        </button>
+        <div className="absolute bottom-4 right-4 flex gap-2">
+          {word.audioUrl && (
+            <button onClick={playAudio} className="w-12 h-12 bg-white/90 backdrop-blur-md text-blue-600 rounded-2xl shadow-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all border border-white">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+          )}
+          <button onClick={() => onPracticeSpeech(word)} className="w-12 h-12 bg-blue-600 text-white rounded-2xl shadow-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all border border-blue-400">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+          </button>
+        </div>
       </div>
 
-      <div className="p-7 flex flex-col flex-grow">
-        <div className="flex justify-between items-start mb-5">
-          <div className="flex-1 min-w-0 pr-2">
-            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-1 rounded-md">
-              {word.category || 'General'}
-            </span>
-            <h3 className="text-2xl font-black text-gray-900 mt-2 break-words leading-tight">{word.english}</h3>
+      <div className="p-6 space-y-6 flex-1 flex flex-col">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <span className="text-[8px] font-black text-gray-300 uppercase tracking-widest block">English</span>
+            <h3 className="text-xl font-black text-gray-900 tracking-tighter truncate">{word.english}</h3>
           </div>
-          
-          <div className="flex flex-col gap-2 shrink-0">
-            {word.audioUrl && (
-              <button 
-                onClick={() => playAudio(word.audioUrl!)}
-                className="p-2.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all active:scale-90 shadow-sm border border-emerald-100"
-              >
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-              </button>
-            )}
-            {canEdit && (
-              <div className="flex flex-col gap-2">
-                <button 
-                  onClick={() => onEdit(word)} 
-                  className="p-2.5 text-gray-500 bg-gray-50 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all shadow-sm border border-gray-100"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                </button>
-              </div>
-            )}
+          <div className="space-y-1 text-right">
+            <span className="text-[8px] font-black text-emerald-300 uppercase tracking-widest block">Tai Khamyang</span>
+            <h3 className="text-xl font-black text-emerald-700 tracking-tight truncate">{word.taiKhamyang}</h3>
+          </div>
+          <div className="col-span-2 h-[1px] bg-gray-50"></div>
+          <div className="space-y-1">
+            <span className="text-[8px] font-black text-blue-300 uppercase tracking-widest block">Assamese</span>
+            <h3 className="text-lg font-bold text-gray-800 assamese-font truncate">{word.assamese}</h3>
+          </div>
+          <div className="space-y-1 text-right">
+            <span className="text-[8px] font-black text-amber-300 uppercase tracking-widest block">Additional</span>
+            <h3 className="text-lg font-bold text-amber-600 truncate">{word.additionalLang || '—'}</h3>
           </div>
         </div>
 
-        <div className="space-y-4 flex-grow">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Assamese (অসমীয়া)</span>
-            <span className="text-2xl text-gray-800 assamese-font font-medium">{word.assamese}</span>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Tai Khamyang</span>
-              <span className="text-xl text-emerald-700 font-black tracking-tight">{word.taiKhamyang}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">More / Other</span>
-              <span className="text-xl text-amber-600 font-black tracking-tight">{word.additionalLang || '—'}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 pt-5 border-t border-gray-100 space-y-3">
+        <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
           {word.pronunciation && (
-             <div className="flex items-center gap-2 text-xs text-gray-400 italic">
-               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-               </svg>
-               {word.pronunciation}
-             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Speak:</span>
+              <span className="text-sm italic font-medium text-gray-600">/{word.pronunciation}/</span>
+            </div>
           )}
-
           {word.exampleSentence && (
-            <div className="bg-gray-50/70 p-4 rounded-2xl border border-gray-50">
-              <p className="text-sm text-gray-900 leading-relaxed font-bold">
-                "{word.exampleSentence}"
-              </p>
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-gray-700 leading-relaxed italic line-clamp-2">"{word.exampleSentence}"</p>
+              {word.sentenceMeaning && <p className="text-[10px] text-gray-400 font-medium leading-snug">{word.sentenceMeaning}</p>}
+            </div>
+          )}
+        </div>
+
+        <div className="pt-4 mt-auto border-t border-gray-50 flex items-center justify-end">
+          {(canEdit || canDelete) && (
+            <div className="flex gap-1">
+              {canEdit && (
+                <button onClick={() => onEdit(word)} className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+              )}
+              {canDelete && (
+                <button onClick={() => onDelete(word.id)} className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+              )}
             </div>
           )}
         </div>
@@ -171,30 +141,22 @@ const WordCard: React.FC<{
   );
 };
 
-export default function WordList({ words, canEdit, canDelete, onEdit, onDelete, onGenerateImage, onPractice, isOnline }: WordListProps) {
+export default function WordList({ words, ...props }: WordListProps) {
   if (words.length === 0) {
     return (
-      <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200 shadow-sm">
-        <p className="text-gray-400 text-lg font-medium">No words found match your search.</p>
+      <div className="py-32 text-center space-y-6">
+        <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto border-2 border-dashed border-gray-200">
+           <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        </div>
+        <h3 className="text-2xl font-black text-gray-900 tracking-tight">No words found</h3>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {words.map((word, index) => (
-        <WordCard 
-          key={word.id}
-          word={word}
-          index={index}
-          canEdit={canEdit}
-          canDelete={canDelete}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onGenerateImage={onGenerateImage}
-          onPractice={onPractice}
-          isOnline={isOnline}
-        />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 pb-20">
+      {words.map((word, i) => (
+        <WordCard key={word.id} word={word} index={i} {...props} />
       ))}
     </div>
   );

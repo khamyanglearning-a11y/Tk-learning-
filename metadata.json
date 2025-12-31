@@ -1,7 +1,8 @@
 {
-  "name": " TaiHub Dictionary 2",
+  "name": "TaiHub",
   "description": "A sophisticated digital dictionary for Assamese, English, Tai Khamyang, and other languages, featuring administrative controls and AI-powered heritage search.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
   ]
 }

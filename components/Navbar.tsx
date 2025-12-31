@@ -4,8 +4,8 @@ import { User } from '../types';
 
 interface NavbarProps {
   user: User | null;
-  activeTab: 'dictionary' | 'library' | 'gallery' | 'songs' | 'about' | 'profile' | 'videos' | 'dashboard' | 'offline';
-  onTabChange: (tab: 'dictionary' | 'library' | 'gallery' | 'songs' | 'about' | 'profile' | 'videos' | 'dashboard' | 'offline') => void;
+  activeTab: 'dictionary' | 'library' | 'gallery' | 'songs' | 'profile' | 'videos' | 'dashboard' | 'offline' | 'wiki';
+  onTabChange: (tab: 'dictionary' | 'library' | 'gallery' | 'songs' | 'profile' | 'videos' | 'dashboard' | 'offline' | 'wiki') => void;
   onLoginClick: (type: 'dev' | 'admin') => void;
   onLogout: () => void;
   onSyncClick: () => void;
@@ -28,19 +28,26 @@ const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const allTabs: { id: typeof activeTab, label: string, icon: string, ownerOnly?: boolean }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z', ownerOnly: true },
-    { id: 'dictionary', label: 'Dictionary', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5S19.832 5.477 21 6.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
-    { id: 'library', label: 'Library', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5S19.832 5.477 21 6.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
-    { id: 'gallery', label: 'Gallery', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h14a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
-    { id: 'videos', label: 'TV', icon: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-    { id: 'songs', label: 'Music', icon: 'M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3' },
-    { id: 'about', label: 'Heritage', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { id: 'offline', label: 'Offline', icon: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12' },
+  const allTabs: { id: typeof activeTab, label: string, icon: string, roleRestriction?: 'owner' | 'admin' | 'staff-feature' }[] = [
+    { id: 'dashboard', label: 'Developer Hub', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z', roleRestriction: 'owner' },
+    { id: 'dashboard', label: 'Staff Portal', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944', roleRestriction: 'admin' },
+    { id: 'dictionary', label: 'Dictionary', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253' },
+    { id: 'wiki', label: 'Scholar AI', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { id: 'library', label: 'Library', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253' },
+    { id: 'gallery', label: 'Gallery', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01' },
+    { id: 'videos', label: 'TV', icon: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14' },
+    { id: 'songs', label: 'Music', icon: 'M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2' },
+    { id: 'offline', label: 'Offline', icon: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4' },
     { id: 'profile', label: 'Profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' }
   ];
 
-  const visibleTabs = allTabs.filter(t => !t.ownerOnly || (user && user.role === 'owner'));
+  const visibleTabs = allTabs.filter(t => {
+    if (!t.roleRestriction) return true;
+    if (!user) return false;
+    if (t.roleRestriction === 'owner') return user.role === 'owner';
+    if (t.roleRestriction === 'admin') return user.role === 'admin';
+    return true;
+  });
 
   return (
     <>
@@ -69,11 +76,11 @@ const Navbar: React.FC<NavbarProps> = ({
             </div>
             
             <div className="hidden md:flex items-center bg-gray-50 border border-gray-100 p-1 rounded-xl ml-4 overflow-x-auto no-scrollbar max-w-[500px]">
-              {visibleTabs.map(tab => (
+              {visibleTabs.map((tab, idx) => (
                 <button 
-                  key={tab.id}
+                  key={idx}
                   onClick={() => onTabChange(tab.id)}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all whitespace-nowrap ${activeTab === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-900'}`}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all whitespace-nowrap ${activeTab === tab.id && tab.label !== 'Staff Portal' && tab.label !== 'Developer Hub' ? 'bg-white text-blue-600 shadow-sm' : (activeTab === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-900')}`}
                 >
                   {tab.label}
                 </button>
@@ -123,9 +130,9 @@ const Navbar: React.FC<NavbarProps> = ({
         
         {isMenuOpen && (
           <div className="absolute inset-x-0 top-16 md:hidden bg-white border-b border-gray-100 shadow-2xl p-4 flex flex-col gap-2 animate-in slide-in-from-top duration-300 z-50">
-            {visibleTabs.map(tab => (
+            {visibleTabs.map((tab, idx) => (
               <button 
-                key={tab.id}
+                key={idx}
                 onClick={() => { onTabChange(tab.id); setIsMenuOpen(false); }}
                 className={`flex items-center gap-4 w-full px-5 py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}
               >

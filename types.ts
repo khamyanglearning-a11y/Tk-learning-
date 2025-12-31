@@ -5,8 +5,8 @@ export interface AdminPermissions {
   gallery: boolean;
   songs: boolean;
   videos: boolean;
-  heritage: boolean;
   exams: boolean;
+  heritage: boolean;
 }
 
 export interface Admin {
@@ -57,8 +57,10 @@ export interface Message {
 
 export interface ExamQuestion {
   id: string;
+  type: 'translation' | 'mcq';
   word: string;
-  meaning: string;
+  correctAnswer: string;
+  options?: string[]; // Only for MCQ
   audioUrl?: string;
 }
 
@@ -70,6 +72,8 @@ export interface Exam {
   createdBy: string;
   createdAt: number;
   timeLimitMinutes: number;
+  difficulty: 'Beginner' | 'Intermediate' | 'Scholar';
+  isPublished: boolean;
 }
 
 export interface ExamSubmission {
@@ -80,6 +84,8 @@ export interface ExamSubmission {
   answers: { questionId: string, answer: string }[];
   submittedAt: number;
   score?: number;
+  totalQuestions: number;
+  grade?: string;
 }
 
 export interface Word {
@@ -96,7 +102,7 @@ export interface Word {
   createdAt: number;
   imageUrl?: string;
   audioUrl?: string;
-  isOfflineReady?: boolean; // New flag for offline tracking
+  isOfflineReady?: boolean; 
 }
 
 export interface User {

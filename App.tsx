@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Word, User, Admin, Book, PublicUser, GalleryImage, Song, Message, Video, StudentRequest, Exam, ExamSubmission, OfflinePack } from './types';
 import { INITIAL_WORDS } from './constants';
@@ -22,16 +21,27 @@ import CommunityChoiceModal from './components/CommunityChoiceModal';
 import StaffChoiceModal from './components/StaffChoiceModal';
 import StudentRegisterModal from './components/StudentRegisterModal';
 import StudentDashboard from './components/StudentDashboard';
-import PronunciationPracticeModal from './components/PronunciationPracticeModal';
-import AboutSection from './components/AboutSection';
 import MessageCenter from './components/MessageCenter';
 import ProfileSection from './components/ProfileSection';
 import PublicStatsHeader from './components/PublicStatsHeader';
 import OfflineCenter from './components/OfflineCenter';
+import WikiScholar from './components/WikiScholar';
+import PronunciationPracticeModal from './components/PronunciationPracticeModal';
 import { syncWordsToCloud, fetchWordsFromCloud } from './services/sheetService';
+import { generateWordImage } from './services/geminiService';
+import { submitToFormspree } from './services/formspreeService';
 
 const OWNER_PHONE = '6901543900';
 const OWNER_NAME = 'Developer';
+
+const INITIAL_STARTERS = [
+  "Origins of Tai Khamyang",
+  "Traditional Chang-Ghar architecture",
+  "Poy-Sang-Ken festival",
+  "Tai food culture in Assam",
+  "Khamyang language preservation",
+  "Buddhist Vihars of Tinsukia"
+];
 
 const App: React.FC = () => {
   const [words, setWords] = useState<Word[]>([]);
@@ -45,8 +55,9 @@ const App: React.FC = () => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [examSubmissions, setExamSubmissions] = useState<ExamSubmission[]>([]);
   const [offlinePacks, setOfflinePacks] = useState<OfflinePack[]>([]);
+  const [scholarStarters, setScholarStarters] = useState<string[]>(INITIAL_STARTERS);
   
-  const [activeTab, setActiveTab] = useState<'dictionary' | 'library' | 'gallery' | 'songs' | 'about' | 'profile' | 'videos' | 'dashboard' | 'offline'>('dictionary');
+  const [activeTab, setActiveTab] = useState<'dictionary' | 'library' | 'gallery' | 'songs' | 'profile' | 'videos' | 'dashboard' | 'offline' | 'wiki'>('dictionary');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -56,7 +67,9 @@ const App: React.FC = () => {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [isWordModalOpen, setIsWordModalOpen] = useState(false);
-  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  const [isBookModalOpen, setIsWordModalOpen_] = useState(false); // Helper to avoid duplicate var names in this quick context
+  // Fix: Renamed setter to setIsBookModalOpenActual to resolve "Cannot find name 'setIsBookModalOpenActual'" errors
+  const [isBookModalOpenActual, setIsBookModalOpenActual] = useState(false);
   const [isGalleryModalOpen, setIsGalleryModalOpen] = useState(false);
   const [isSongModalOpen, setIsSongModalOpen] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
@@ -65,7 +78,8 @@ const App: React.FC = () => {
   const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
   const [isStaffChoiceModalOpen, setIsStaffChoiceModalOpen] = useState(false);
   const [isMessageCenterOpen, setIsMessageCenterOpen] = useState(false);
-  const [practicingWord, setPracticingWord] = useState<Word | null>(null);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [practiceWord, setPracticeWord] = useState<Word | null>(null);
   
   const [isSyncing, setIsSyncing] = useState(false);
   const [editingWord, setEditingWord] = useState<Word | undefined>(undefined);
@@ -98,6 +112,7 @@ const App: React.FC = () => {
     const savedSubmissions = localStorage.getItem('dictionary_exam_submissions');
     const savedPacks = localStorage.getItem('dictionary_offline_packs');
     const savedSession = localStorage.getItem('dictionary_current_session');
+    const savedStarters = localStorage.getItem('dictionary_scholar_starters');
     
     if (savedWords) {
       try {
@@ -117,6 +132,7 @@ const App: React.FC = () => {
     if (savedExams) try { setExams(JSON.parse(savedExams)); } catch (e) { setExams([]); }
     if (savedSubmissions) try { setExamSubmissions(JSON.parse(savedSubmissions)); } catch (e) { setExamSubmissions([]); }
     if (savedPacks) try { setOfflinePacks(JSON.parse(savedPacks)); } catch (e) { setOfflinePacks([]); }
+    if (savedStarters) try { setScholarStarters(JSON.parse(savedStarters)); } catch (e) { setScholarStarters(INITIAL_STARTERS); }
     if (savedSession) try { setCurrentUser(JSON.parse(savedSession)); } catch (e) { setCurrentUser(null); }
   }, []);
 
@@ -132,232 +148,122 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem('dictionary_exams', JSON.stringify(exams)); }, [exams]);
   useEffect(() => { localStorage.setItem('dictionary_exam_submissions', JSON.stringify(examSubmissions)); }, [examSubmissions]);
   useEffect(() => { localStorage.setItem('dictionary_offline_packs', JSON.stringify(offlinePacks)); }, [offlinePacks]);
+  useEffect(() => { localStorage.setItem('dictionary_scholar_starters', JSON.stringify(scholarStarters)); }, [scholarStarters]);
   useEffect(() => {
     if (currentUser) localStorage.setItem('dictionary_current_session', JSON.stringify(currentUser));
     else localStorage.removeItem('dictionary_current_session');
   }, [currentUser]);
 
-  const handleOfflineToggle = (packId: string) => {
-    setOfflinePacks(prev => {
-      const isCurrentlyDownloaded = prev.find(p => p.id === packId)?.isDownloaded;
-      const updated = prev.map(p => p.id === packId ? { ...p, isDownloaded: !p.isDownloaded } : p);
-      
-      // Update words' offline status based on packs
-      const updatedWords = words.map(w => {
-        const belongsToPack = w.category === packId || packId === 'all';
-        if (belongsToPack) {
-          return { ...w, isOfflineReady: !isCurrentlyDownloaded };
-        }
-        return w;
-      });
-      setWords(updatedWords);
-      return updated;
-    });
-  };
-
-  const handleRegister = (name: string, address: string, phone: string) => {
-    const cleanPhone = phone.replace(/\D/g, '');
-    const newUser: PublicUser = { id: cleanPhone, name, address, phone: cleanPhone, registeredAt: Date.now() };
-    setRegisteredUsers(prev => [...prev, newUser]);
-    setIsRegisterModalOpen(false);
-    setRegistrationSuccess(true);
-    setLoginIntent('public');
-    setLandingView('signin');
-  };
-
-  const handleStudentRegister = (data: { name: string, phone: string, email: string, address: string, photoUrl: string }) => {
-    const cleanPhone = data.phone.replace(/\D/g, '');
-    const newRequest: StudentRequest = {
-      ...data,
-      id: `STU-${Date.now()}`,
-      phone: cleanPhone,
-      status: 'pending',
-      requestedAt: Date.now(),
-      canAccessExam: false
-    };
-    setStudentRequests(prev => [...prev, newRequest]);
-    alert("Admission request sent to Developer. Please wait for approval before logging in.");
-  };
-
-  const handleLogin = (phoneNumber: string, otp: string) => {
-    if (!activeOtp || otp !== activeOtp) { alert("Invalid code."); return; }
-    const cleanPhone = phoneNumber.replace(/\D/g, '');
-    const isOwnerNumber = cleanPhone.endsWith(OWNER_PHONE.slice(-10));
-
-    if (loginIntent === 'developer') {
-      if (isOwnerNumber) {
-        setCurrentUser({ id: cleanPhone, username: cleanPhone, name: OWNER_NAME, role: 'owner', permissions: { dictionary: true, library: true, gallery: true, songs: true, videos: true, heritage: true, exams: true } });
-        setActiveTab('dashboard');
-      } else { alert("Access Denied."); return; }
-    } else if (loginIntent === 'staff') {
-      const foundAdmin = admins.find(a => a.phone.endsWith(cleanPhone.slice(-10)));
-      if (foundAdmin) {
-        setCurrentUser({ id: cleanPhone, username: cleanPhone, name: foundAdmin.name, role: 'admin', permissions: foundAdmin.permissions });
-        setActiveTab('dictionary');
-      } else if (isOwnerNumber) {
-        setCurrentUser({ id: cleanPhone, username: cleanPhone, name: OWNER_NAME, role: 'owner', permissions: { dictionary: true, library: true, gallery: true, songs: true, videos: true, heritage: true, exams: true } });
-        setActiveTab('dashboard');
-      } else { alert("Staff access denied."); return; }
-    } else if (loginIntent === 'student') {
-      if (isOwnerNumber) {
-        setCurrentUser({ id: cleanPhone, username: cleanPhone, name: OWNER_NAME + " (Admin-Student)", role: 'student', studentStatus: 'approved', canAccessExam: true });
-        setActiveTab('dictionary');
-        return;
-      }
-
-      const foundStudent = studentRequests.find(r => r.phone.endsWith(cleanPhone.slice(-10)));
-      if (foundStudent) {
-        if (foundStudent.status === 'approved') {
-          setCurrentUser({ id: foundStudent.id, username: cleanPhone, name: foundStudent.name, role: 'student', studentStatus: 'approved', canAccessExam: foundStudent.canAccessExam });
-          setActiveTab('dictionary');
-        } else if (foundStudent.status === 'pending') {
-          alert("Your admission is still pending review by the Developer.");
-          return;
-        } else {
-          alert("Your admission request was not approved.");
-          return;
-        }
-      } else {
-        alert("Student record not found. Please submit admission form first.");
-        return;
-      }
+  const handleSync = async () => {
+    if (!isOnline) return alert("You are offline.");
+    setIsSyncing(true);
+    const success = await syncWordsToCloud(words);
+    if (success) {
+      const cloudWords = await fetchWordsFromCloud();
+      if (cloudWords && cloudWords.length > 0) setWords(cloudWords);
+      alert("Heritage Cloud Sync Complete.");
     } else {
-      const foundUser = registeredUsers.find(u => u.phone.endsWith(cleanPhone.slice(-10)));
-      if (foundUser) {
-        setCurrentUser({ id: foundUser.id, username: cleanPhone, name: foundUser.name, role: 'viewer' });
-        setActiveTab('dictionary');
-      } else if (isOwnerNumber) {
-        setCurrentUser({ id: cleanPhone, username: cleanPhone, name: OWNER_NAME, role: 'viewer' });
-        setActiveTab('dictionary');
-      } else { alert("User not registered."); return; }
+      alert("Cloud Sync Failed. Please check Sheet URL.");
+    }
+    setIsSyncing(false);
+  };
+
+  const handleGenerateImage = async (wordId: string) => {
+    const word = words.find(w => w.id === wordId);
+    if (!word) return;
+    const usePro = window.confirm("Would you like to generate a High-Quality (Pro) image? \n\nNote: This requires you to select your own API key.");
+    if (usePro) {
+      const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+      if (!hasKey) await (window as any).aistudio.openSelectKey();
+    }
+    try {
+      const imageUrl = await generateWordImage(word.english, usePro);
+      if (imageUrl) {
+        setWords(prev => prev.map(w => w.id === wordId ? { ...w, imageUrl } : w));
+      } else { alert("Failed to paint the visual."); }
+    } catch (err: any) {
+      if (err.message === "APIKEY_MISSING") { alert("Authorization needed."); await (window as any).aistudio.openSelectKey(); }
     }
   };
 
-  const handleApproveStudent = (requestId: string) => {
-    setStudentRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'approved' } : r));
-    alert("Student approved successfully.");
+  const handleSendMessage = (receiverId: string, text: string) => {
+    if (!currentUser) return;
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      senderId: currentUser.id,
+      receiverId,
+      text,
+      timestamp: Date.now(),
+      status: 'sent',
+      isRead: false
+    };
+    setMessages(prev => [...prev, newMessage]);
   };
 
-  const handleRejectStudent = (requestId: string) => {
-    if (window.confirm("Reject this student application?")) {
-      setStudentRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'rejected' } : r));
-    }
+  const handleMarkAsRead = (senderId: string) => {
+    if (!currentUser) return;
+    setMessages(prev => prev.map(m => 
+      (m.senderId === senderId && m.receiverId === currentUser.id) ? { ...m, isRead: true, status: 'seen' } : m
+    ));
   };
 
-  const handleToggleExamAccess = (requestId: string) => {
-    setStudentRequests(prev => prev.map(r => r.id === requestId ? { ...r, canAccessExam: !r.canAccessExam } : r));
+  const unreadCount = useMemo(() => {
+    if (!currentUser) return 0;
+    return messages.filter(m => m.receiverId === currentUser.id && !m.isRead).length;
+  }, [messages, currentUser]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('dictionary_current_session');
+    setCurrentUser(null);
+    setIsLogoutModalOpen(false);
+    setLandingView('welcome');
+    setActiveTab('dictionary');
   };
 
   const handleCreateExam = (exam: Exam) => {
     setExams(prev => [exam, ...prev]);
-    alert("Exam published to Exam Hall.");
+    submitToFormspree("New Exam Created", exam);
+    if (exam.isPublished) alert("Published to Student Hall.");
+    else alert("Saved as private draft.");
   };
 
   const handleExamSubmit = (submission: ExamSubmission) => {
     setExamSubmissions(prev => [submission, ...prev]);
-    alert("Exam answers submitted for review.");
+    submitToFormspree("Exam Submission", submission);
   };
 
   const handleWordSubmit = (data: Partial<Word>) => {
     if (editingWord) {
       setWords(prev => prev.map(w => w.id === editingWord.id ? { ...w, ...data } as Word : w));
+      submitToFormspree("Word Updated", data);
     } else {
-      const newWord: Word = {
-        ...data,
-        id: Date.now().toString(),
-        createdAt: Date.now(),
-        addedBy: currentUser?.name || 'Unknown',
-        category: data.category || 'General',
-        isOfflineReady: true // Manually added words are offline by default
-      } as Word;
+      const newWord: Word = { ...data, id: Date.now().toString(), createdAt: Date.now(), addedBy: currentUser?.name || 'Unknown', category: data.category || 'General', isOfflineReady: true } as Word;
       setWords(prev => [newWord, ...prev]);
+      submitToFormspree("New Word Entry", newWord);
     }
     setIsWordModalOpen(false);
     setEditingWord(undefined);
-  };
-
-  const handleBookSubmit = (data: Partial<Book>) => {
-    if (editingBook) {
-      setBooks(prev => prev.map(b => b.id === editingBook.id ? { ...b, ...data } as Book : b));
-    } else {
-      const newBook: Book = {
-        ...data,
-        id: Date.now().toString(),
-        createdAt: Date.now(),
-        addedBy: currentUser?.name || 'Unknown'
-      } as Book;
-      setBooks(prev => [newBook, ...prev]);
-    }
-    setIsBookModalOpen(false);
-    setEditingBook(undefined);
-  };
-
-  const handleGallerySubmit = (data: { url: string; caption: string }) => {
-    const newImage: GalleryImage = {
-      ...data,
-      id: Date.now().toString(),
-      createdAt: Date.now(),
-      addedBy: currentUser?.name || 'Unknown'
-    };
-    setGallery(prev => [newImage, ...prev]);
-    setIsGalleryModalOpen(false);
-  };
-
-  const handleSongSubmit = (data: { title: string; artist: string; audioUrl: string }) => {
-    const newSong: Song = {
-      ...data,
-      id: Date.now().toString(),
-      createdAt: Date.now(),
-      addedBy: currentUser?.name || 'Unknown'
-    };
-    setSongs(prev => [newSong, ...prev]);
-    setIsSongModalOpen(false);
-  };
-
-  const handleVideoSubmit = (data: { title: string; youtubeUrl: string }) => {
-    const newVideo: Video = {
-      ...data,
-      id: Date.now().toString(),
-      createdAt: Date.now(),
-      addedBy: currentUser?.name || 'Unknown'
-    };
-    setVideos(prev => [newVideo, ...prev]);
-    setIsVideoModalOpen(false);
-  };
-
-  const handleUpdateUser = (updatedUser: PublicUser) => {
-    setRegisteredUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-  };
-
-  const handleDeleteUser = (userId: string) => {
-    if (window.confirm("Permanently remove this user?")) {
-      setRegisteredUsers(prev => prev.filter(u => u.id !== userId));
-    }
-  };
-
-  const handleCloudSync = async () => {
-    if (!currentUser || currentUser.role !== 'owner') return;
-    if (!isOnline) return alert("Offline.");
-    setIsSyncing(true);
-    const success = await syncWordsToCloud(words);
-    setIsSyncing(false);
-    if (success) alert("Synced.");
   };
 
   const canEditDictionary = currentUser?.role === 'owner' || !!currentUser?.permissions?.dictionary;
 
   if (currentUser && currentUser.role === 'student') {
     return (
-      <StudentDashboard 
-        user={currentUser}
-        words={words}
-        books={books}
-        videos={videos}
-        exams={exams}
-        submissions={examSubmissions}
-        onExamSubmit={handleExamSubmit}
-        onLogout={() => { setCurrentUser(null); setLandingView('welcome'); }}
-      />
+      <>
+        <StudentDashboard 
+          user={currentUser}
+          words={words}
+          books={books}
+          videos={videos}
+          exams={exams}
+          submissions={examSubmissions}
+          onExamSubmit={handleExamSubmit}
+          onLogout={() => setIsLogoutModalOpen(true)}
+        />
+        {isLogoutModalOpen && (
+          <LogoutConfirmModal onCancel={() => setIsLogoutModalOpen(false)} onConfirm={handleLogout} />
+        )}
+      </>
     );
   }
 
@@ -373,133 +279,162 @@ const App: React.FC = () => {
             />
             {isChoiceModalOpen && <CommunityChoiceModal onClose={() => setIsChoiceModalOpen(false)} onRegisterSelect={() => { setIsChoiceModalOpen(false); setIsRegisterModalOpen(true); }} onLoginSelect={() => { setIsChoiceModalOpen(false); setLoginIntent('public'); setLandingView('signin'); }} />}
             {isStaffChoiceModalOpen && <StaffChoiceModal onClose={() => setIsStaffChoiceModalOpen(false)} onStaffSelect={() => { setIsStaffChoiceModalOpen(false); setLoginIntent('staff'); setLandingView('signin'); }} onDeveloperSelect={() => { setIsStaffChoiceModalOpen(false); setLoginIntent('developer'); setLandingView('signin'); }} />}
-            {isRegisterModalOpen && <RegisterModal onClose={() => setIsRegisterModalOpen(false)} onRegister={handleRegister} />}
-            {isStudentRegisterModalOpen && (
-              <StudentRegisterModal 
-                onClose={() => setIsStudentRegisterModalOpen(false)} 
-                onRegister={handleStudentRegister} 
-                studentRequests={studentRequests}
-                ownerPhone={OWNER_PHONE}
-                onLoginRequested={() => { setLoginIntent('student'); setLandingView('signin'); setIsStudentRegisterModalOpen(false); }}
-              />
-            )}
+            {isRegisterModalOpen && <RegisterModal onClose={() => setIsRegisterModalOpen(false)} onRegister={(n, a, p) => {
+              const cleanPhone = p.replace(/\D/g, '');
+              const newUser: PublicUser = { id: cleanPhone, name: n, address: a, phone: cleanPhone, registeredAt: Date.now() };
+              setRegisteredUsers(prev => [...prev, newUser]);
+              submitToFormspree("Community Member Registered", newUser);
+              setIsRegisterModalOpen(false);
+              setRegistrationSuccess(true);
+              setLoginIntent('public');
+              setLandingView('signin');
+            }} />}
+            {isStudentRegisterModalOpen && <StudentRegisterModal onClose={() => setIsStudentRegisterModalOpen(false)} onRegister={(d) => {
+               const cleanPhone = d.phone.replace(/\D/g, '');
+               const newReq: StudentRequest = { ...d, id: `STU-${Date.now()}`, phone: cleanPhone, status: 'pending', requestedAt: Date.now(), canAccessExam: false };
+               setStudentRequests(prev => [...prev, newReq]);
+               submitToFormspree("Student Admission Request", newReq);
+               alert("Admission request sent.");
+            }} studentRequests={studentRequests} ownerPhone={OWNER_PHONE} onLoginRequested={() => { setLoginIntent('student'); setLandingView('signin'); setIsStudentRegisterModalOpen(false); }} />}
           </>
         ) : (
-          <SignInPage onClose={() => { setLandingView('welcome'); setRegistrationSuccess(false); }} onLogin={handleLogin} expectedOtp={activeOtp} onOtpGenerated={setActiveOtp} intent={loginIntent} showSuccess={registrationSuccess} />
+          <SignInPage onClose={() => { setLandingView('welcome'); setRegistrationSuccess(false); }} onLogin={(p, o) => {
+            if (!activeOtp || o !== activeOtp) { alert("Invalid code."); return; }
+            const cleanPhone = p.replace(/\D/g, '');
+            const isOwnerNumber = cleanPhone.endsWith(OWNER_PHONE.slice(-10));
+            if (loginIntent === 'developer' && isOwnerNumber) {
+               setCurrentUser({ id: cleanPhone, username: cleanPhone, name: OWNER_NAME, role: 'owner', permissions: { dictionary: true, library: true, gallery: true, songs: true, videos: true, exams: true, heritage: true } });
+               setActiveTab('dashboard');
+            } else if (loginIntent === 'staff') {
+              const staff = admins.find(a => a.phone.endsWith(cleanPhone.slice(-10)));
+              if (staff) { setCurrentUser({ id: cleanPhone, username: cleanPhone, name: staff.name, role: 'admin', permissions: staff.permissions }); setActiveTab('dashboard'); }
+              else if (isOwnerNumber) { setCurrentUser({ id: cleanPhone, username: cleanPhone, name: OWNER_NAME, role: 'owner', permissions: { dictionary: true, library: true, gallery: true, songs: true, videos: true, exams: true, heritage: true } }); setActiveTab('dashboard'); }
+              else alert("Staff not found.");
+            } else if (loginIntent === 'student') {
+              const req = studentRequests.find(r => r.phone.endsWith(cleanPhone.slice(-10)));
+              if (isOwnerNumber || (req && req.status === 'approved')) {
+                setCurrentUser(isOwnerNumber ? { id: cleanPhone, username: cleanPhone, name: OWNER_NAME, role: 'student', studentStatus: 'approved', canAccessExam: true } : { id: req!.id, username: cleanPhone, name: req!.name, role: 'student', studentStatus: 'approved', canAccessExam: req!.canAccessExam });
+                setActiveTab('dictionary');
+              } else alert("Admission not approved.");
+            } else {
+              const u = registeredUsers.find(usr => usr.phone.endsWith(cleanPhone.slice(-10)));
+              if (u || isOwnerNumber) { setCurrentUser({ id: cleanPhone, username: cleanPhone, name: u?.name || OWNER_NAME, role: 'viewer' }); setActiveTab('dictionary'); }
+              else alert("User not registered.");
+            }
+          }} expectedOtp={activeOtp} onOtpGenerated={setActiveOtp} intent={loginIntent} showSuccess={registrationSuccess} />
         )
       ) : (
         <>
-          <Navbar 
-            user={currentUser} 
-            activeTab={activeTab} 
-            onTabChange={setActiveTab} 
-            onLoginClick={() => {}} 
-            onLogout={() => setCurrentUser(null)} 
-            onSyncClick={handleCloudSync} 
-            onMessagesClick={() => setIsMessageCenterOpen(true)} 
-            isSyncing={isSyncing} 
-            isOnline={isOnline} 
-            unreadCount={messages.filter(m => m.receiverId === currentUser.id && !m.isRead).length} 
-          />
+          <Navbar user={currentUser} activeTab={activeTab} onTabChange={setActiveTab} onLoginClick={() => {}} onLogout={() => setIsLogoutModalOpen(true)} onSyncClick={handleSync} onMessagesClick={() => setIsMessageCenterOpen(true)} isSyncing={isSyncing} isOnline={isOnline} unreadCount={unreadCount} />
           <main className="max-w-6xl mx-auto px-4 mt-8">
             <header className="text-center mb-12">
               <h1 className="text-4xl md:text-6xl font-black text-gray-900 mb-4 tracking-tighter capitalize">
-                {activeTab === 'dashboard' ? 'Developer Dashboard' : activeTab === 'offline' ? 'Offline Manager' : activeTab}
+                {activeTab === 'dashboard' ? (currentUser.role === 'owner' ? 'Developer Hub' : 'Staff Portal') : (activeTab === 'wiki' ? 'Scholar AI' : activeTab)}
               </h1>
-              {activeTab === 'dictionary' && canEditDictionary && (
-                <button 
-                  onClick={() => setIsWordModalOpen(true)}
-                  className="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black transition-all shadow-xl shadow-blue-100 flex items-center justify-center gap-2 active:scale-95 mx-auto"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" /></svg>
-                  Add New Word
-                </button>
-              )}
+              {activeTab === 'dictionary' && canEditDictionary && <button onClick={() => setIsWordModalOpen(true)} className="mt-2 bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100 flex items-center justify-center gap-2 mx-auto active:scale-95 transition-all">Add New Word</button>}
             </header>
-            
-            {activeTab === 'dashboard' && currentUser.role === 'owner' && (
+
+            {activeTab === 'dashboard' && (currentUser.role === 'owner' || currentUser.role === 'admin') && (
               <AdminPanel 
-                user={currentUser}
-                admins={admins} 
-                registeredUsers={registeredUsers}
-                studentRequests={studentRequests}
-                exams={exams}
-                onSaveAdmin={(a) => setAdmins(prev => [...prev.filter(p => p.phone !== a.phone), a])} 
+                user={currentUser} admins={admins} registeredUsers={registeredUsers} studentRequests={studentRequests} exams={exams}
+                onSaveAdmin={(a) => {
+                  setAdmins(prev => [...prev.filter(p => p.phone !== a.phone), a]);
+                  submitToFormspree("Staff Appointed/Updated", a);
+                }} 
                 onRemoveAdmin={(p) => setAdmins(prev => prev.filter(a => a.phone !== p))} 
-                onUpdateUser={handleUpdateUser}
-                onDeleteUser={handleDeleteUser}
-                onApproveStudent={handleApproveStudent}
-                onRejectStudent={handleRejectStudent}
-                onToggleExamAccess={handleToggleExamAccess}
-                onCreateExam={handleCreateExam}
-                onDeleteExam={(id) => setExams(prev => prev.filter(e => e.id !== id))}
-                stats={{
-                  words: words.length,
-                  books: books.length,
-                  photos: gallery.length,
-                  songs: songs.length,
-                  videos: videos.length
-                }}
+                onUpdateUser={(u) => setRegisteredUsers(prev => prev.map(usr => usr.id === u.id ? u : usr))}
+                onDeleteUser={(id) => setRegisteredUsers(prev => prev.filter(u => u.id !== id))}
+                onApproveStudent={(id) => setStudentRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' } : r))}
+                onRejectStudent={(id) => setStudentRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'rejected' } : r))}
+                onToggleExamAccess={(id) => setStudentRequests(prev => prev.map(r => r.id === id ? { ...r, canAccessExam: !r.canAccessExam } : r))}
+                onCreateExam={handleCreateExam} onDeleteExam={(id) => setExams(prev => prev.filter(e => e.id !== id))}
+                stats={{ words: words.length, books: books.length, photos: gallery.length, songs: songs.length, videos: videos.length }}
               />
             )}
 
             {activeTab === 'dictionary' && (
               <>
-                <PublicStatsHeader 
-                  stats={{
-                    words: words.length,
-                    books: books.length,
-                    photos: gallery.length,
-                    songs: songs.length,
-                    videos: videos.length
-                  }} 
-                />
+                <PublicStatsHeader stats={{ words: words.length, books: books.length, photos: gallery.length, songs: songs.length, videos: videos.length }} />
                 <SearchBar value={searchQuery} onChange={setSearchQuery} />
                 <WordList 
-                  words={words.filter(w => 
-                    w.english.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                    w.assamese.includes(searchQuery) ||
-                    w.taiKhamyang.toLowerCase().includes(searchQuery.toLowerCase())
-                  )} 
+                  words={words.filter(w => w.english.toLowerCase().includes(searchQuery.toLowerCase()) || w.assamese.includes(searchQuery) || w.taiKhamyang.toLowerCase().includes(searchQuery.toLowerCase()))} 
                   canEdit={canEditDictionary} 
                   canDelete={currentUser.role === 'owner'} 
                   onEdit={(w) => {setEditingWord(w); setIsWordModalOpen(true);}} 
                   onDelete={(id) => setWords(prev => prev.filter(w => w.id !== id))} 
-                  onGenerateImage={() => Promise.resolve()} 
-                  onPractice={setPracticingWord} 
+                  onGenerateImage={handleGenerateImage} 
+                  onPracticeSpeech={(w) => setPracticeWord(w)}
                   isOnline={isOnline} 
                 />
               </>
             )}
-            
-            {activeTab === 'library' && <BookSection books={books} user={currentUser} onAddClick={() => setIsBookModalOpen(true)} onEditClick={(b) => { setEditingBook(b); setIsBookModalOpen(true); }} onDeleteClick={(id) => setBooks(prev => prev.filter(b => b.id !== id))} />}
-            {activeTab === 'gallery' && <GallerySection images={gallery} user={currentUser} onAddClick={() => setIsStudentRegisterModalOpen(true)} onDeleteClick={(id) => setGallery(prev => prev.filter(i => i.id !== id))} />}
-            {activeTab === 'about' && <AboutSection isOnline={isOnline} />}
+
+            {activeTab === 'library' && <BookSection books={books} user={currentUser} onAddClick={() => setIsBookModalOpenActual(true)} onEditClick={(b) => { setEditingBook(b); setIsBookModalOpenActual(true); }} onDeleteClick={(id) => setBooks(prev => prev.filter(b => b.id !== id))} />}
+            {activeTab === 'gallery' && <GallerySection images={gallery} user={currentUser} onAddClick={() => setIsGalleryModalOpen(true)} onDeleteClick={(id) => setGallery(prev => prev.filter(i => i.id !== id))} />}
             {activeTab === 'videos' && <VideoSection videos={videos} user={currentUser} onAddClick={() => setIsVideoModalOpen(true)} onDeleteClick={(id) => setVideos(prev => prev.filter(v => v.id !== id))} />}
             {activeTab === 'songs' && <SongSection songs={songs} user={currentUser} onAddClick={() => setIsSongModalOpen(true)} onDeleteClick={(id) => setSongs(prev => prev.filter(s => s.id !== id))} />}
-            {activeTab === 'profile' && <ProfileSection currentUser={currentUser} registeredUsers={registeredUsers} onUpdateProfile={() => {}} />}
-            {activeTab === 'offline' && (
-              <OfflineCenter 
-                words={words} 
-                packs={offlinePacks} 
-                onTogglePack={handleOfflineToggle}
-                isOnline={isOnline} 
-              />
-            )}
+            {activeTab === 'profile' && <ProfileSection currentUser={currentUser} registeredUsers={registeredUsers} onUpdateProfile={(d) => {
+              setRegisteredUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, ...d } : u));
+              submitToFormspree("Profile Updated", d);
+            }} />}
+            {activeTab === 'wiki' && <WikiScholar user={currentUser} starters={scholarStarters} onUpdateStarters={(s) => {
+              setScholarStarters(s);
+              submitToFormspree("Scholar Starters Customized", { starters: s });
+            }} isOnline={isOnline} />}
+            {activeTab === 'offline' && <OfflineCenter words={words} packs={offlinePacks} onTogglePack={(id) => setOfflinePacks(prev => prev.map(p => p.id === id ? { ...p, isDownloaded: !p.isDownloaded } : p))} isOnline={isOnline} />}
           </main>
-          
-          {isMessageCenterOpen && <MessageCenter currentUser={currentUser} users={registeredUsers} messages={messages} dictionary={words} onSendMessage={() => {}} onMarkAsRead={() => {}} onClose={() => setIsMessageCenterOpen(false)} />}
-          {practicingWord && <PronunciationPracticeModal word={practicingWord} onClose={() => setPracticingWord(null)} />}
+
+          {isMessageCenterOpen && <MessageCenter currentUser={currentUser} users={registeredUsers} messages={messages} dictionary={words} onSendMessage={handleSendMessage} onMarkAsRead={handleMarkAsRead} onClose={() => setIsMessageCenterOpen(false)} />}
+          {isLogoutModalOpen && <LogoutConfirmModal onCancel={() => setIsLogoutModalOpen(false)} onConfirm={handleLogout} />}
+          {practiceWord && <PronunciationPracticeModal word={practiceWord} onClose={() => setPracticeWord(null)} />}
           
           {isWordModalOpen && <WordFormModal onClose={() => { setIsWordModalOpen(false); setEditingWord(undefined); }} onSubmit={handleWordSubmit} canDelete={currentUser.role === 'owner'} existingWords={words} isOnline={isOnline} initialData={editingWord} />}
-          {isBookModalOpen && <BookFormModal onClose={() => { setIsBookModalOpen(false); setEditingBook(undefined); }} onSubmit={handleBookSubmit} initialData={editingBook} />}
-          {isGalleryModalOpen && <GalleryFormModal onClose={() => setIsGalleryModalOpen(false)} onSubmit={handleGallerySubmit} />}
-          {isSongModalOpen && <SongFormModal onClose={() => setIsSongModalOpen(false)} onSubmit={handleSongSubmit} />}
-          {isVideoModalOpen && <VideoFormModal onClose={() => setIsVideoModalOpen(false)} onSubmit={handleVideoSubmit} />}
+          {isBookModalOpenActual && <BookFormModal onClose={() => { setIsBookModalOpenActual(false); setEditingBook(undefined); }} onSubmit={(d) => {
+            if (editingBook) {
+              setBooks(prev => prev.map(b => b.id === editingBook.id ? { ...b, ...d } as Book : b));
+              submitToFormspree("Library Book Updated", d);
+            } else {
+              const newBook = { ...d, id: Date.now().toString(), createdAt: Date.now(), addedBy: currentUser.name } as Book;
+              setBooks(prev => [newBook, ...prev]);
+              submitToFormspree("New Library Book Uploaded", newBook);
+            }
+            setIsBookModalOpenActual(false); setEditingBook(undefined);
+          }} initialData={editingBook} />}
+          {isGalleryModalOpen && <GalleryFormModal onClose={() => setIsGalleryModalOpen(false)} onSubmit={(d) => {
+            const newImage = { ...d, id: Date.now().toString(), createdAt: Date.now(), addedBy: currentUser.name } as GalleryImage;
+            setGallery(prev => [newImage, ...prev]);
+            submitToFormspree("New Photo Added to Gallery", newImage);
+          }} />}
+          {isSongModalOpen && <SongFormModal onClose={() => setIsSongModalOpen(false)} onSubmit={(d) => {
+            const newSong = { ...d, id: Date.now().toString(), createdAt: Date.now(), addedBy: currentUser.name } as Song;
+            setSongs(prev => [newSong, ...prev]);
+            submitToFormspree("New Song Uploaded", newSong);
+          }} />}
+          {isVideoModalOpen && <VideoFormModal onClose={() => setIsVideoModalOpen(false)} onSubmit={(d) => {
+            const newVideo = { ...d, id: Date.now().toString(), createdAt: Date.now(), addedBy: currentUser.name } as Video;
+            setVideos(prev => [newVideo, ...prev]);
+            submitToFormspree("New Video Featured", newVideo);
+          }} />}
         </>
       )}
     </div>
   );
 };
+
+const LogoutConfirmModal: React.FC<{ onCancel: () => void, onConfirm: () => void }> = ({ onCancel, onConfirm }) => (
+  <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+    <div className="bg-white rounded-[2.5rem] w-full max-sm shadow-2xl p-10 text-center transform transition-all animate-in zoom-in duration-300">
+      <div className="w-20 h-20 bg-red-50 text-red-500 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
+        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+      </div>
+      <h2 className="text-3xl font-black text-gray-900 tracking-tighter mb-2">Sign Out?</h2>
+      <p className="text-gray-500 font-medium mb-10 leading-relaxed px-4">Are you sure you want to end your current session?</p>
+      <div className="space-y-3">
+        <button onClick={onConfirm} className="w-full py-5 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl shadow-red-200">Yes, Logout Now</button>
+        <button onClick={onCancel} className="w-full py-4 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-2xl font-black text-sm transition-all">Cancel</button>
+      </div>
+    </div>
+  </div>
+);
 
 export default App;
