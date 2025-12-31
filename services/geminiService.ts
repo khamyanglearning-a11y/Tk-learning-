@@ -39,10 +39,6 @@ export const getAIWordSuggestions = async (word: string, sourceLang: string) => 
   }
 };
 
-/**
- * Improved Wiki Scholar search function.
- * Returns structured heritage data with bilingual descriptions.
- */
 export const searchTaiHeritage = async (query: string) => {
   if (!process.env.API_KEY || !query) return null;
 
@@ -137,18 +133,19 @@ export const generateAIVoice = async (text: string): Promise<string | null> => {
 };
 
 export const generateSmsMessage = async (otp: string): Promise<string> => {
-  if (!process.env.API_KEY) return `Your TaiHub verification code is ${otp}. Please do not share this with anyone.`;
+  if (!process.env.API_KEY) return `Your TaiHub verification code is *${otp}*. Do not share this.`;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Generate a realistic, professional SMS message for a login OTP. The code is ${otp}. 
-      The app name is "TaiHub Dictionary". Keep it under 100 characters. 
-      Format: "Your [App] code is [Code]. [Security Warning]."`,
+      contents: `Generate a short WhatsApp OTP message for "TaiHub".
+      The code is ${otp}. 
+      Use WhatsApp formatting: Use *asterisks* for bold.
+      Example: "Your *TaiHub* code is *${otp}*. 🔐"`,
     });
     return response.text.trim();
   } catch (error) {
-    return `Your TaiHub verification code is ${otp}. Do not share this code.`;
+    return `Your *TaiHub* login code is *${otp}*. Please do not share this with anyone. 🔐`;
   }
 };
 
@@ -156,7 +153,6 @@ export const generateWordImage = async (word: string, isPro: boolean = false): P
   if (!process.env.API_KEY || !word) return null;
 
   try {
-    // For Pro model, the rules require a fresh instance to catch the latest API key
     const currentAi = isPro ? new GoogleGenAI({ apiKey: process.env.API_KEY }) : ai;
     const modelName = isPro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
 
@@ -165,15 +161,7 @@ export const generateWordImage = async (word: string, isPro: boolean = false): P
       contents: {
         parts: [
           {
-            text: `Create a cinematic, professional-quality photograph representing the concept of "${word}". 
-            Context: The visual MUST strictly relate to the Tai Khamyang (Shyam) community culture of Northeast India.
-            Visual details to include:
-            - Traditional 'Chang-ghar' architecture (houses on stilts made of bamboo and wood).
-            - Authentic Tai hand-woven textiles featuring complex geometric patterns (Phan-ek, Phan-chet).
-            - Lush tropical landscapes of the Brahmaputra Valley (tea gardens, bamboo groves, rivers).
-            - Elements of Theravada Buddhism (golden pagodas, monks in saffron robes, prayer flags).
-            - Style: High-end National Geographic documentary style, sharp focus, vibrant natural colors, warm golden-hour lighting. 
-            - Requirements: No text, no watermarks, ultra-realistic textures.`,
+            text: `Create a cinematic photograph of "${word}" strictly relating to Tai Khamyang (Shyam) community of Northeast India. Include Chang-ghar architecture, traditional textiles, and Theravada Buddhist elements.`,
           },
         ],
       },
@@ -193,9 +181,6 @@ export const generateWordImage = async (word: string, isPro: boolean = false): P
     return null;
   } catch (error) {
     console.error("Image Generation Error:", error);
-    if (error instanceof Error && error.message.includes("Requested entity was not found")) {
-      throw new Error("APIKEY_MISSING");
-    }
     return null;
   }
 };
